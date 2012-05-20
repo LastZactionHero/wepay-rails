@@ -55,6 +55,25 @@ module WepayRails
         resp = self.call_api("/checkout/create", defaults).symbolize_keys!
         resp.merge({:security_token => security_token})
       end
+      
+      def perform_preapproval(parms)        
+        security_token = Digest::SHA2.hexdigest("#{rand(4)}#{Time.now.to_i}")
+        defaults = {
+            :callback_uri     => ipn_callback_uri(security_token),
+            :redirect_uri     => checkout_redirect_uri(security_token),
+            :fee_payer        => @wepay_config[:fee_payer],
+            :charge_tax       => @wepay_config[:charge_tax] ? 1 : 0,
+            :app_fee          => @wepay_config[:app_fee],
+            :auto_capture     => @wepay_config[:auto_capture] ? 1 : 0,
+            :account_id       => @wepay_config[:account_id],
+            :period           => 'monthly',
+            :frequency        => '1',
+            :end_time         => Time.now.to_i + 365 * 24 * 60 * 60,
+        }.merge(parms)
+        
+        resp = self.call_api("/preapproval/create", defaults).symbolize_keys!
+        resp.merge({:security_token => security_token})
+      end      
 
       def lookup_checkout(checkout_id)
         co = self.call_api("/checkout", {:checkout_id => checkout_id})
@@ -62,6 +81,12 @@ module WepayRails
         co
       end
 
+      def lookup_preapproval(preapproval_id)
+        co = self.call_api("/preapproval", {:preapproval_id => preapproval_id})
+        co.delete("type")
+        co
+      end
+            
       def ipn_callback_uri(security_token)
         uri = if @wepay_config[:ipn_callback_uri].present?
                 @wepay_config[:ipn_callback_uri]
